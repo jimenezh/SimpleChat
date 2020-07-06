@@ -1,6 +1,8 @@
 package com.example.simplechat;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.os.Bundle;
 import android.util.Log;
@@ -9,6 +11,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import com.example.simplechat.adapters.ChatAdapter;
 import com.example.simplechat.models.Message;
 import com.parse.LogInCallback;
 import com.parse.ParseAnonymousUtils;
@@ -16,6 +19,8 @@ import com.parse.ParseException;
 import com.parse.ParseObject;
 import com.parse.ParseUser;
 import com.parse.SaveCallback;
+
+import java.util.ArrayList;
 
 public class ChatActivity extends AppCompatActivity {
 
@@ -26,6 +31,12 @@ public class ChatActivity extends AppCompatActivity {
 
     EditText etMessage;
     Button btSend;
+
+    RecyclerView rvChat;
+    ArrayList<Message> mMessages;
+    ChatAdapter mAdapter;
+    // Keep track of initial load to scroll to the bottom of the ListView
+    boolean mFirstLoad;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,11 +73,22 @@ public class ChatActivity extends AppCompatActivity {
         // Find the text field and button
         etMessage = (EditText) findViewById(R.id.etMessage);
         btSend = (Button) findViewById(R.id.btSend);
+        // Recycler View
+        rvChat = (RecyclerView) findViewById(R.id.rvChat);
+        mMessages = new ArrayList<>();
+        mFirstLoad = true;
+        final String userId = ParseUser.getCurrentUser().getObjectId();
+        mAdapter = new ChatAdapter(ChatActivity.this, userId, mMessages);
+        rvChat.setAdapter(mAdapter);
+
+        // associate the LayoutManager with the RecylcerView
+        final LinearLayoutManager linearLayoutManager = new LinearLayoutManager(ChatActivity.this);
+        rvChat.setLayoutManager(linearLayoutManager);
+
         // When send button is clicked, create message object on Parse
         btSend.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Getting user message
                 String data = etMessage.getText().toString();
                 // Using new `Message` Parse-backed model now
                 Message message = new Message();
@@ -75,16 +97,18 @@ public class ChatActivity extends AppCompatActivity {
                 message.saveInBackground(new SaveCallback() {
                     @Override
                     public void done(ParseException e) {
-                        if(e == null) {
-                            Toast.makeText(ChatActivity.this, "Successfully created message on Parse",
-                                    Toast.LENGTH_SHORT).show();
-                        } else {
-                            Log.e(TAG, "Failed to save message", e);
-                        }
+                        Toast.makeText(ChatActivity.this, "Successfully created message on Parse",
+                                Toast.LENGTH_SHORT).show();
+                        refreshMessages();
                     }
                 });
                 etMessage.setText(null);
             }
         });
+    }
+
+    // Query messages from Parse so we can load them into the chat adapter
+    void refreshMessages() {
+        // TODO:
     }
 }
