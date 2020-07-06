@@ -22,10 +22,11 @@ import com.parse.ParseObject;
 import com.parse.ParseQuery;
 import com.parse.ParseUser;
 import com.parse.SaveCallback;
+import com.parse.livequery.ParseLiveQueryClient;
+import com.parse.livequery.SubscriptionHandling;
 
 import java.util.ArrayList;
 import java.util.List;
-import android.os.Handler;
 
 public class ChatActivity extends AppCompatActivity {
 
@@ -35,16 +36,6 @@ public class ChatActivity extends AppCompatActivity {
     static final String BODY_KEY = "body";
     private static final int MAX_CHAT_MESSAGES_TO_SHOW = 50;
     static final int POLL_INTERVAL = 1000; // milliseconds
-
-    // Create a handler which can run code periodically
-    Handler myHandler = new Handler();
-    Runnable mRefreshMessagesRunnable = new Runnable() {
-        @Override
-        public void run() {
-            refreshMessages();
-            myHandler.postDelayed(this, POLL_INTERVAL);
-        }
-    };
 
     EditText etMessage;
     Button btSend;
@@ -64,12 +55,45 @@ public class ChatActivity extends AppCompatActivity {
             startWithCurrentUser();
         } else { // If not logged in, login as a new anonymous user
             login();
-            myHandler.postDelayed(mRefreshMessagesRunnable, POLL_INTERVAL);
         }
+    }
+
+    private void setLiveQuery() {
+        // Load existing messages to begin with
+        refreshMessages();
+
+        // URL for server is determined by Parse.initialize() call.
+        ParseLiveQueryClient parseLiveQueryClient = ParseLiveQueryClient.Factory.getClient();
+
+        ParseQuery<Message> parseQuery = ParseQuery.getQuery(Message.class);
+        // This query can even be more granular (i.e. only refresh if the entry was added by some other user)
+        // parseQuery.whereNotEqualTo(USER_ID_KEY, ParseUser.getCurrentUser().getObjectId());
+
+        // Connect to Parse server
+        SubscriptionHandling<Message> subscriptionHandling = parseLiveQueryClient.subscribe(parseQuery);
+
+        // Listen for CREATE events
+        subscriptionHandling.handleEvent(SubscriptionHandling.Event.CREATE, new
+                SubscriptionHandling.HandleEventCallback<Message>() {
+                    @Override
+                    public void onEvent(ParseQuery<Message> query, Message object) {
+                        mMessages.add(0, object);
+                        // RecyclerView updates need to be run on the UI thread
+                        // Note we never update UI from threads other than UI thread
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                mAdapter.notifyDataSetChanged();
+                                rvChat.scrollToPosition(0);
+                            }
+                        });
+                    }
+                });
     }
 
     // Get the userId from the cached currentUser object
     void startWithCurrentUser() {
+        setLiveQuery(); // Setting listener
         setupMessagePosting();
     }
 
